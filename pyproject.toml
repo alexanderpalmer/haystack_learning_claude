@@ -1,0 +1,12 @@
+[project]
+name = "haystack-learning"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "faiss-haystack>=2.0.0",
+    "haystack-ai>=2.26.1",
+    "ollama-haystack>=6.2.0",
+    "pypdf>=6.9.2",
+]
