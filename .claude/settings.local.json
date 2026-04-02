@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ollama list:*)"
+      "Bash(ollama list:*)",
+      "Bash(/home/ap/Projects/haystack_learning_claude/.venv/bin/pip install:*)",
+      "Bash(uv --version)",
+      "Bash(uv add:*)",
+      "Bash(/home/ap/Projects/haystack_learning_claude/.venv/bin/python -c \"import nltk; nltk.download\\('punkt_tab', quiet=True\\); nltk.download\\('averaged_perceptron_tagger_eng', quiet=True\\); print\\('NLTK bereit'\\)\")",
+      "Bash(.venv/bin/python index_faiss.py)",
+      "Bash(.venv/bin/python:*)"
     ]
   }
 }

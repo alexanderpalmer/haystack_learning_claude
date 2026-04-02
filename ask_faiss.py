@@ -61,7 +61,7 @@ query_pipeline.add_component(
     "llm",
     OllamaChatGenerator(
         model="gemma3:4b",
-        timeout=300,
+        timeout=600,
         generation_kwargs={"temperature": 0.1},
     ),
 )
