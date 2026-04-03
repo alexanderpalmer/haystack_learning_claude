@@ -17,7 +17,20 @@
       "Bash(kill 602315)",
       "Bash(kill 602317)",
       "Bash(python test_faiss.py)",
-      "Bash(tee storage/test_log.txt)"
+      "Bash(tee storage/test_log.txt)",
+      "Bash(ls /home/ap/Projects/haystack_learning_claude/*.py)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); correct=sum\\(1 for x in d if x['hit']\\); print\\(f'Ergebnis aus test_results.json: {correct}/{len\\(d\\)} korrekt \\({correct/len\\(d\\)*100:.0f}%\\)'\\)\")",
+      "Bash(python3 -c ':*)",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(kill -0 39559)",
+      "Bash(ps:*)",
+      "Bash(kill 39559 35051)",
+      "Bash(kill -9 33355)",
+      "Bash(python3 -c \"import json,sys; m=[x['name'] for x in json.load\\(sys.stdin\\)['models']]; print\\('Ollama OK, Modelle:', m\\)\")",
+      "Bash(sudo systemctl:*)",
+      "Bash(python3 -c \"import json,sys; print\\('Ollama neu gestartet, Modelle verfügbar:', len\\(json.load\\(sys.stdin\\)['models']\\)\\)\")",
+      "Bash(kill -9 33355 141804)",
+      "Bash(python3 -c \"import json,sys; print\\('Ollama OK,', len\\(json.load\\(sys.stdin\\)['models']\\), 'Modelle'\\)\")"
     ]
   }
 }

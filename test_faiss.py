@@ -4,6 +4,7 @@ Führt 24 Fragen aus und bewertet die Qualität der Antworten.
 """
 import re
 import json
+import time
 
 from haystack import Pipeline
 from haystack.dataclasses import ChatMessage
@@ -59,7 +60,7 @@ query_pipeline.add_component(
 )
 query_pipeline.add_component(
     "llm",
-    OllamaChatGenerator(model="gemma3:4b", timeout=600, generation_kwargs={"temperature": 0.1}),
+    OllamaChatGenerator(model="llama3.2:3b", timeout=120, generation_kwargs={"temperature": 0.1, "num_predict": 512}),
 )
 query_pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
 query_pipeline.connect("retriever.documents", "prompt_builder.documents")
@@ -71,11 +72,51 @@ STRUCTURAL_PATTERNS = [
     r"\bletztes?\s+kapitel\b", r"\berstes?\s+kapitel\b",
 ]
 
+# TOC-Seiten (5–10) direkt laden für Strukturfragen
+toc_docs = sorted(
+    [d for d in document_store.filter_documents() if 5 <= d.meta.get("pdf_page", 0) <= 10],
+    key=lambda d: d.meta.get("pdf_page", 0),
+)
+
+llm = OllamaChatGenerator(
+    model="llama3.2:3b", timeout=120, generation_kwargs={"temperature": 0.1, "num_predict": 512}
+)
+
+
+def is_structural(query: str) -> bool:
+    q_lower = query.lower()
+    return any(re.search(p, q_lower) for p in STRUCTURAL_PATTERNS)
+
+
+def ask_structural(question: str) -> tuple[str, list, float]:
+    """Beantwortet Strukturfragen direkt mit den TOC-Seiten."""
+    # "Inhalt\n{Seitenzahl}\n" Header aus jedem Chunk entfernen
+    clean_lines = []
+    for d in toc_docs:
+        for line in d.content.splitlines():
+            stripped = line.strip()
+            if stripped and stripped != "Inhalt" and not stripped.isdigit():
+                clean_lines.append(stripped)
+    context = "\n".join(clean_lines)
+
+    # Nur Hauptkapitel (keine Unterabschnitte) für Zählfragen
+    if re.search(r"\bwie\s+viele\b", question.lower()):
+        chapters = [l for l in clean_lines if re.match(r"^\d{1,2}\s+[A-ZÄÖÜ]", l)]
+        context = "\n".join(chapters)
+    messages = [
+        ChatMessage.from_system(
+            "Du bist ein präziser Assistent. Antworte NUR mit dem gefragten Wert — "
+            "keine Erklärung, kein Kommentar. Stütze dich ausschließlich auf den Kontext."
+        ),
+        ChatMessage.from_user(f"INHALTSVERZEICHNIS:\n====\n{context}\n====\n\nFRAGE: {question}\n\nANTWORT:"),
+    ]
+    result = llm.run(messages=messages)
+    answer = result["replies"][0].text.strip()
+    pages = sorted(set(d.meta["pdf_page"] for d in toc_docs))
+    return answer, pages, 1.0
+
 
 def expand_query(query: str) -> str:
-    q_lower = query.lower()
-    if any(re.search(p, q_lower) for p in STRUCTURAL_PATTERNS):
-        return f"{query} Inhaltsverzeichnis Kapitelübersicht"
     return query
 
 
@@ -160,23 +201,31 @@ for item in test_questions:
     search_query = expand_query(question)
     print(f"[{nr:02d}/{total}] {question[:70]}...")
 
-    try:
-        result = query_pipeline.run(
-            data={
-                "text_embedder": {"text": search_query},
-                "retriever": {"top_k": 15},
-                "prompt_builder": {"question": question},
-            },
-            include_outputs_from={"retriever"},
-        )
-        answer = result["llm"]["replies"][0].text.strip()
-        chunks = result["retriever"]["documents"]
-        pages = sorted(set(d.meta.get("pdf_page", "?") for d in chunks))
-        top_score = max((getattr(d, "score", 0) or 0) for d in chunks)
-    except Exception as e:
-        answer = f"FEHLER: {e}"
-        pages = []
-        top_score = 0.0
+    answer, pages, top_score = None, [], 0.0
+    for attempt in range(1, 4):
+        try:
+            if is_structural(question):
+                answer, pages, top_score = ask_structural(question)
+            else:
+                result = query_pipeline.run(
+                    data={
+                        "text_embedder": {"text": search_query},
+                        "retriever": {"top_k": 5},
+                        "prompt_builder": {"question": question},
+                    },
+                    include_outputs_from={"retriever"},
+                )
+                answer = result["llm"]["replies"][0].text.strip()
+                chunks = result["retriever"]["documents"]
+                pages = sorted(set(d.meta.get("pdf_page", "?") for d in chunks))
+                top_score = max((getattr(d, "score", 0) or 0) for d in chunks)
+            break
+        except Exception as e:
+            wait = 10 * attempt
+            print(f"  [Versuch {attempt}/3] Fehler: {e!s:.120} — warte {wait}s ...")
+            time.sleep(wait)
+            if attempt == 3:
+                answer = f"FEHLER: {e}"
 
     # Einfache Keyword-Prüfung ob Schlüsselbegriff in der Antwort vorkommt
     expected_kw = item["erwartet"]
