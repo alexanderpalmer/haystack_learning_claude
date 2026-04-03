@@ -3,8 +3,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import List
 
+from pypdf import PdfReader
+
 from haystack import Pipeline, component, Document
-from haystack.components.converters import PyPDFToDocument
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
@@ -13,13 +14,40 @@ from haystack_integrations.document_stores.faiss import FAISSDocumentStore
 
 
 @component
+class PerPagePDFConverter:
+    """
+    Extrahiert Text aus einer PDF-Datei seitenweise.
+    Jede Seite wird zu einem eigenen Document mit korrekter page_number im Metadaten-Feld.
+    """
+
+    @component.output_types(documents=List[Document])
+    def run(self, sources: List[str]):
+        documents = []
+        for source in sources:
+            reader = PdfReader(source)
+            source_name = Path(source).name
+            for page_num, page in enumerate(reader.pages, start=1):
+                text = page.extract_text() or ""
+                doc = Document(
+                    content=text,
+                    meta={
+                        "pdf_page": page_num,
+                        "file_path": source_name,
+                    },
+                )
+                documents.append(doc)
+        return {"documents": documents}
+
+
+@component
 class PDFArtifactCleaner:
     """
-    Bereinigt PDF-spezifische Artefakte, die DocumentCleaner nicht behandeln kann:
-    - Seitenumbruch-Zeichen (\x0c) mit folgender Seitenüberschrift
-    - Deutsche Silbentrennung über Zeilenumbrüche (z.B. "Kön-\nnen" → "können")
+    Bereinigt PDF-spezifische Artefakte:
+    - Seitenumbruch-Zeichen (\x0c) mit folgender Kopfzeile
+    - Digitales Wasserzeichen ("Persönliches Exemplar für ...")
     - Copyright-Footer ("© Rheinwerk Verlag, Bonn 2026")
-    - Inhaltsverzeichnis-Zeilen mit Punktketten ("Kapitel ...... 42")
+    - Deutsche Silbentrennung über Zeilenumbrüche (z.B. "Kön-\nnen" → "können")
+    - Punktketten in TOC-Zeilen kürzen, Kapitelname und Seitenzahl erhalten
     """
 
     @component.output_types(documents=List[Document])
@@ -31,7 +59,7 @@ class PDFArtifactCleaner:
             # Seitenumbruch-Zeichen + nachfolgende Kopfzeile entfernen
             text = re.sub(r"\x0c[^\n]*\n?", " ", text)
 
-            # Digitales Wasserzeichen entfernen ("Persönliches Exemplar für ...")
+            # Digitales Wasserzeichen entfernen
             text = re.sub(r"Persönliches Exemplar für[^\n]*\n?", "", text)
 
             # Copyright-Footer entfernen
@@ -43,8 +71,9 @@ class PDFArtifactCleaner:
             # Silbentrennung ohne Leerzeichen: "Kön-\nnen" → "können"
             text = re.sub(r"(\w+)-\n(\w)", r"\1\2", text)
 
-            # Inhaltsverzeichnis-Zeilen entfernen: "Kapitel ....... 42"
-            text = re.sub(r"[^\n]+\.{4,}[^\n]+", "", text)
+            # Punktketten kürzen, Kapitelname und Seitenzahl erhalten
+            # "Kapitel 3 .......... 42" → "Kapitel 3 42"
+            text = re.sub(r"\.{4,}", " ", text)
 
             cleaned.append(replace(doc, content=text))
         return {"documents": cleaned}
@@ -66,7 +95,7 @@ document_store = FAISSDocumentStore(
 )
 
 indexing_pipeline = Pipeline()
-indexing_pipeline.add_component("converter", PyPDFToDocument())
+indexing_pipeline.add_component("converter", PerPagePDFConverter())
 indexing_pipeline.add_component("pdf_cleaner", PDFArtifactCleaner())
 indexing_pipeline.add_component(
     "cleaner",

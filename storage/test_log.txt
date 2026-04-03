@@ -1,0 +1,2 @@
+/home/ap/Projects/haystack_learning_claude/.venv/lib/python3.12/site-packages/haystack_integrations/components/generators/ollama/chat/chat_generator.py:178: Warning: Mutating attribute '_meta' on an instance of 'ChatMessage' can lead to unexpected behavior by affecting other parts of the pipeline that use the same dataclass instance. Use `dataclasses.replace(instance, _meta=new_value)` instead. See https://docs.haystack.deepset.ai/docs/custom-components#requirements for details.
+  chat_msg._meta = _convert_ollama_meta_to_openai_format(response_dict)

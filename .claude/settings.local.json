@@ -7,7 +7,17 @@
       "Bash(uv add:*)",
       "Bash(/home/ap/Projects/haystack_learning_claude/.venv/bin/python -c \"import nltk; nltk.download\\('punkt_tab', quiet=True\\); nltk.download\\('averaged_perceptron_tagger_eng', quiet=True\\); print\\('NLTK bereit'\\)\")",
       "Bash(.venv/bin/python index_faiss.py)",
-      "Bash(.venv/bin/python:*)"
+      "Bash(.venv/bin/python:*)",
+      "Bash(wait 544005)",
+      "Bash(wait 578105)",
+      "Bash(chmod +x /home/ap/Projects/haystack_learning_claude/run_tests.sh)",
+      "Bash(bash run_tests.sh)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(xargs kill:*)",
+      "Bash(kill 602315)",
+      "Bash(kill 602317)",
+      "Bash(python test_faiss.py)",
+      "Bash(tee storage/test_log.txt)"
     ]
   }
 }
